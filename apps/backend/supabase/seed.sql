@@ -94,3 +94,38 @@ insert into notes (user_id, instrument_id, body, created_at) values
   ('00000000-0000-0000-0000-0000000000a1', null,
    'Portfolio is drifting concentrated in large-cap tech. Worth a rebalance look next quarter.',
    '2026-07-01 08:00+00');
+
+-- ---------------------------------------------------------------------------
+-- Quotes, alert rules and preferences
+-- ---------------------------------------------------------------------------
+--
+-- Prices for the three seeded instruments, plus four rules chosen so exactly two
+-- of them are true right now: the local stack should show a fired alert and an
+-- armed one side by side, not an empty list. `evaluate_alert_rules()` runs at the
+-- bottom rather than waiting up to five minutes for pg_cron's first tick.
+
+insert into quotes (instrument_id, as_of, price, previous_close, source) values
+  ('00000000-0000-0000-0000-0000000000b1', now() - interval '5 minutes', 238.40, 231.10, 'stub'),
+  ('00000000-0000-0000-0000-0000000000b2', now() - interval '5 minutes', 205.60, 209.80, 'stub'),
+  ('00000000-0000-0000-0000-0000000000b3', now() - interval '5 minutes', 268.15, 267.40, 'stub');
+
+-- Push on, email off — enough to prove the fan-out picks one channel and not the
+-- other without the dev loop needing an email provider.
+insert into alert_preferences (user_id, push_enabled, email_enabled)
+values ('00000000-0000-0000-0000-0000000000a1', true, false);
+
+insert into alert_rules (user_id, instrument_id, kind, threshold, window_days, next_review_on, enabled, note) values
+  -- True: AAPL is at 238.40.
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b1',
+   'price_above', 235, null, null, true, 'Trim into strength above 235.'),
+  -- False: the add-more level is a long way below here.
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b1',
+   'price_below', 180, null, null, true, 'Add below 180 — the January entry condition.'),
+  -- False: MSFT has moved 2% against its previous close, not 5%.
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b2',
+   'pct_move', 5, 1, null, true, 'Anything past 5% in a day is worth reading about.'),
+  -- True: the review date has passed. Firing walks it forward 90 days.
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b1',
+   'thesis_review', null, 90, current_date - 7, true, 'Quarterly re-read of the AAPL thesis.');
+
+select evaluate_alert_rules();

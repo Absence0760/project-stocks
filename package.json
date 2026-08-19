@@ -30,6 +30,10 @@
     "check:unions": "node scripts/check_constraint_unions.mjs",
     "check:mobile": "bash scripts/check-mobile.sh",
     "//-- gen --": "Regenerate database.types.ts from the live local schema. Commit the result.",
-    "gen:types": "pnpm -C apps/backend gen:types"
+    "gen:types": "pnpm -C apps/backend gen:types",
+    "//-- alerts --": "Quotes and condition alerts, run by hand instead of waiting for pg_cron's 5-minute tick. QUOTE_PROVIDER defaults to the local stub (Finnhub needs FINNHUB_API_KEY); both delivery channels default to a logging sender.",
+    "dev:quotes:refresh": "bash bin/dev-alerts.sh refresh-quotes",
+    "dev:alerts:evaluate": "bash bin/dev-alerts.sh evaluate",
+    "dev:alerts:deliver": "bash bin/dev-alerts.sh deliver"
   }
 }

@@ -55,7 +55,9 @@ Deno.serve(async (request) => {
   }
 
   const authHeader = request.headers.get("Authorization") ?? "";
-  const presented = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
+  const presented = authHeader.toLowerCase().startsWith("bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
   if (!secretsMatch(presented, serviceRoleKey)) {
     return json({ error: "service role key required" }, 401);
   }

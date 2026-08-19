@@ -96,8 +96,7 @@ Deno.test("mints a verifiable RS256 assertion and sends the notification", async
   // 1. the token exchange
   const assertion = new URLSearchParams(recorded[0].body).get("assertion")!;
   const [header, claims, signature] = assertion.split(".");
-  const decode = (part: string) =>
-    JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+  const decode = (part: string) => JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
 
   assertEquals(decode(header), { alg: "RS256", typ: "JWT" });
   const parsedClaims = decode(claims);
@@ -169,13 +168,19 @@ Deno.test("one live device among stale ones still counts as delivered", async ()
 Deno.test("every device stale is permanent; an upstream error is retryable", async () => {
   const account = await throwawayServiceAccount();
 
-  const allStale = await senderWith(account.json, (url) =>
-    url.includes("/token") ? okHandler(url) : new Response("{}", { status: 404 }), []).send(DELIVERY);
+  const allStale = await senderWith(
+    account.json,
+    (url) => url.includes("/token") ? okHandler(url) : new Response("{}", { status: 404 }),
+    [],
+  ).send(DELIVERY);
   assertEquals(allStale.delivered, false);
   assertEquals(allStale.retryable, false);
 
-  const upstream = await senderWith(account.json, (url) =>
-    url.includes("/token") ? okHandler(url) : new Response("{}", { status: 503 }), []).send(DELIVERY);
+  const upstream = await senderWith(
+    account.json,
+    (url) => url.includes("/token") ? okHandler(url) : new Response("{}", { status: 503 }),
+    [],
+  ).send(DELIVERY);
   assertEquals(upstream.delivered, false);
   assertEquals(upstream.retryable, true);
 });
@@ -184,7 +189,8 @@ Deno.test("a failed token exchange does not leak the key into the error", async 
   const account = await throwawayServiceAccount();
   const sender = senderWith(
     account.json,
-    (url) => url.includes("/token") ? new Response("bad assertion", { status: 400 }) : okHandler(url),
+    (url) =>
+      url.includes("/token") ? new Response("bad assertion", { status: 400 }) : okHandler(url),
     [],
   );
 

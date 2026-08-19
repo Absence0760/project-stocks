@@ -22,7 +22,11 @@ Deno.test("the price moves overnight", async () => {
 });
 
 Deno.test("different symbols get different prices", async () => {
-  const { quotes } = await new StubQuoteProvider({ now: MONDAY }).fetchQuotes(["AAPL", "MSFT", "VTI"]);
+  const { quotes } = await new StubQuoteProvider({ now: MONDAY }).fetchQuotes([
+    "AAPL",
+    "MSFT",
+    "VTI",
+  ]);
   const prices = new Set(quotes.map((q) => q.price));
 
   assertEquals(quotes.length, 3);

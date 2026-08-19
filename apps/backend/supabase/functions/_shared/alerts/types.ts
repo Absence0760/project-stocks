@@ -94,7 +94,8 @@ export function describeAlert(delivery: AlertDelivery): { title: string; body: s
     case "pct_move":
       return {
         title: `${symbol} moved ${pctChange}%`,
-        body: `${symbol} is trading at ${price}, against a reference of ${context.reference_price}.`,
+        body:
+          `${symbol} is trading at ${price}, against a reference of ${context.reference_price}.`,
       };
     case "thesis_review":
       return {

@@ -15,7 +15,13 @@ import { dirname, join } from "node:path";
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const SCHEMA = join(repoRoot, "apps/backend/supabase/migrations/20260819120000_initial_schema.sql");
+const ALERTS_SCHEMA = join(
+  repoRoot,
+  "apps/backend/supabase/migrations/20260819140000_quotes_and_alerts.sql",
+);
 const TYPES = join(repoRoot, "apps/backend/supabase/functions/_shared/ingest/types.ts");
+const QUOTE_TYPES = join(repoRoot, "apps/backend/supabase/functions/_shared/quotes/types.ts");
+const ALERT_TYPES = join(repoRoot, "apps/backend/supabase/functions/_shared/alerts/types.ts");
 
 /** Each pair: a CHECK constraint in SQL and the const array it must match. */
 const PAIRS = [
@@ -28,6 +34,27 @@ const PAIRS = [
     label: "transaction type",
     sql: { file: SCHEMA, table: "transactions", column: "type" },
     ts: { file: TYPES, constName: "TRANSACTION_TYPES" },
+  },
+  {
+    label: "quote source",
+    sql: { file: ALERTS_SCHEMA, table: "quotes", column: "source" },
+    ts: { file: QUOTE_TYPES, constName: "QUOTE_SOURCES" },
+  },
+  {
+    // An alert kind is read in three places — the CHECK, the condition scan's
+    // CASE, and the client that offers the kinds — and only the first two can be
+    // kept honest by the database.
+    label: "alert kind",
+    sql: { file: ALERTS_SCHEMA, table: "alert_rules", column: "kind" },
+    ts: { file: ALERT_TYPES, constName: "ALERT_KINDS" },
+  },
+  {
+    // The fan-out enqueues by kind and the worker dispatches on it. A kind in
+    // only one of the two is either a scan-aborting constraint violation or a
+    // handler nothing ever reaches.
+    label: "delivery job kind",
+    sql: { file: ALERTS_SCHEMA, table: "jobs", column: "kind" },
+    ts: { file: ALERT_TYPES, constName: "JOB_KINDS" },
   },
 ];
 

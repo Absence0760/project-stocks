@@ -183,7 +183,11 @@ export class FcmPushSender implements AlertSender {
       };
     }
 
-    return { delivered: false, reason: `FCM refused the send: ${errors.join("; ")}`, retryable: true };
+    return {
+      delivered: false,
+      reason: `FCM refused the send: ${errors.join("; ")}`,
+      retryable: true,
+    };
   }
 
   /** Mint (and cache) an OAuth2 access token from the service-account key. */

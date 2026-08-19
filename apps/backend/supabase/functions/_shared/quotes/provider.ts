@@ -12,7 +12,7 @@
 
 import { FinnhubQuoteProvider } from "./finnhub.ts";
 import { StubQuoteProvider } from "./stub.ts";
-import { QuoteProviderConfigError, type QuoteProvider } from "./types.ts";
+import { type QuoteProvider, QuoteProviderConfigError } from "./types.ts";
 
 /** `Deno.env.get`-shaped, so tests pass a plain object lookup. */
 export type EnvReader = (key: string) => string | undefined;

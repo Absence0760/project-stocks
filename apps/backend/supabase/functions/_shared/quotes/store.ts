@@ -94,7 +94,10 @@ export class PostgrestQuoteStore implements QuoteStore {
     for (const row of rows) {
       const symbol = row.instruments?.symbol;
       if (!symbol) continue;
-      held.set(row.instrument_id, { instrumentId: row.instrument_id, symbol: symbol.toUpperCase() });
+      held.set(row.instrument_id, {
+        instrumentId: row.instrument_id,
+        symbol: symbol.toUpperCase(),
+      });
     }
     return [...held.values()];
   }
