@@ -38,7 +38,8 @@ pnpm setup                   # one-time bootstrap (needs Docker running)
 pnpm dev:core                # start the local Supabase stack
 pnpm dev:db:reset            # re-apply migrations + seed
 pnpm dev:db:status           # ports and service health
-pnpm dev:db:down             # stop the stack
+pnpm dev:db:down             # stop just the Supabase stack
+pnpm dev:down                # stop everything this project started
 
 pnpm setup:mobile            # resolve the Dart workspace
 pnpm dev:run:mobile          # run the Flutter app against the local stack
@@ -123,6 +124,12 @@ automatically. The gate is on the host, not just `kDebugMode` — a debug build
 pointed at production must never send a hardcoded credential.
 
 ## Conventions and gotchas
+
+- **`pnpm dev:down` is pinned to this project's Supabase id.** This box runs more
+  than one local stack — `project-running` holds 54321-54327 — so a bare
+  `supabase stop` resolving the id from whatever config it finds is not safe here.
+  The stop keeps the database backup, so `dev:core` restores your data;
+  `dev:db:reset` is the explicit way to start clean.
 
 - **`amount` is always a positive magnitude.** Direction lives in `type`, never in
   the sign. Adapters normalise on the way in so the FIFO replay never guesses.

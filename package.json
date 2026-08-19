@@ -12,6 +12,7 @@
     "setup:mobile": "bash scripts/setup-mobile.sh",
     "//-- dev --": "Local stack. Supabase on 54421-54429 \u2014 offset +100 so it coexists with project-running's stack on 54321-54327.",
     "dev:core": "bash bin/dev-core.sh",
+    "dev:down": "bash bin/dev-down.sh",
     "dev:db:up": "pnpm -C apps/backend db:up",
     "dev:db:down": "pnpm -C apps/backend db:down",
     "dev:db:reset": "pnpm -C apps/backend db:reset",
@@ -31,12 +32,11 @@
     "check:mobile": "bash scripts/check-mobile.sh",
     "//-- gen --": "Regenerate database.types.ts from the live local schema. Commit the result.",
     "gen:types": "pnpm -C apps/backend gen:types",
-    "//-- web --": "SvelteKit 5 static SPA on port 7777. dev:run:web needs dev:core up first — it reads the publishable key from `supabase status` and never writes it to a file.",
+    "//-- web --": "SvelteKit 5 static SPA on port 7777. dev:run:web needs dev:core up first \u2014 it reads the publishable key from `supabase status` and never writes it to a file.",
     "dev:run:web": "bash bin/dev-run-web.sh",
     "build:web": "pnpm -C apps/web build",
     "check:web": "pnpm -C apps/web check",
     "test:web": "pnpm -C apps/web test",
-
     "//-- ai --": "Local LLM behind the research assistant. Ollama on 11434; AI_PROVIDER defaults to it, so no cloud key is needed. Model from AI_MODEL (default llama3.2). See docs/STACK.md \u00a7 The AI research assistant.",
     "dev:ai:status": "bash bin/dev-ai.sh status",
     "dev:ai:pull": "bash bin/dev-ai.sh pull"
