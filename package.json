@@ -30,6 +30,9 @@
     "check:unions": "node scripts/check_constraint_unions.mjs",
     "check:mobile": "bash scripts/check-mobile.sh",
     "//-- gen --": "Regenerate database.types.ts from the live local schema. Commit the result.",
-    "gen:types": "pnpm -C apps/backend gen:types"
+    "gen:types": "pnpm -C apps/backend gen:types",
+    "//-- ai --": "Local LLM behind the research assistant. Ollama on 11434; AI_PROVIDER defaults to it, so no cloud key is needed. Model from AI_MODEL (default llama3.2). See docs/STACK.md \u00a7 The AI research assistant.",
+    "dev:ai:status": "bash bin/dev-ai.sh status",
+    "dev:ai:pull": "bash bin/dev-ai.sh pull"
   }
 }

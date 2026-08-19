@@ -172,3 +172,101 @@ pointed at production must never send a hardcoded credential.
 - Don't let Deno resolve npm packages here. It writes a `workspaces` field into the
   root `package.json` whenever it sees `pnpm-workspace.yaml` nearby, which is the
   dual-workspace drift this repo exists to avoid.
+
+## The AI research assistant
+
+A **research assistant and journal, not a stock picker.** It is never asked to
+predict a price or recommend a trade, and the system prompt says so in its own
+instructions rather than trusting the UI never to ask. Its four jobs:
+
+1. Summarise a position against **the thesis the user wrote** — not against the
+   model's own view of the company.
+2. Flag when an **exit or entry condition the user wrote** appears to be met,
+   quoted verbatim, with the note or number that raised it. Reading a note back
+   is not advice; deciding what to do about it stays the user's.
+3. Draft a periodic digest of what changed and what has gone unrevisited.
+4. Notice repetition and drift in the notes — the same worry written three times,
+   a stated plan that keeps not happening.
+
+Everything the model asserts must be traceable to the grounding it was given; the
+prompt tells it to say so when the context is silent rather than fill the gap.
+
+### Calling it
+
+`POST /functions/v1/ai-digest` with the caller's JWT:
+
+```json
+{ "kind": "weekly-review" }
+```
+
+`kind` is one of `weekly-review`, `thesis-check`, `note-patterns`. The response
+carries the prose, the stored `digestId`, the provider-qualified `model`, token
+`usage`, and **counts** of what it was grounded on (not the data itself — the
+client already has that).
+
+Notable statuses: `403 disclosure_required` (see below), `422 empty_journal`
+(nothing to summarise — refused rather than handed to a model to invent),
+`503 model_not_installed` (the local model needs pulling; the body names the
+exact `ollama pull` command).
+
+### Consent is checked on the server
+
+Generating a digest sends holdings and private notes to a model, so
+`ai_disclosure_acceptances` is a **versioned, fail-closed** ladder that the edge
+function checks *before reading a single row* — no acceptance refuses, and an
+acceptance older than `REQUIRED_DISCLOSURE_VERSION`
+(`_shared/ai/disclosure.ts`) refuses too. A UI-only gate would be a suggestion;
+the function is reachable with nothing but a token.
+
+Bump `REQUIRED_DISCLOSURE_VERSION` whenever the disclosure text changes
+materially (a new provider, a new class of data leaving the machine). That
+re-prompts everyone, which is the intended cost. The acceptance rows are
+append-only evidence: `select` + `insert` are granted, `update` and `delete` are
+not.
+
+### Providers — local by default
+
+One env var chooses, and its absence chooses the local one:
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `AI_PROVIDER` | `ollama` | or `anthropic` |
+| `AI_MODEL` | `llama3.2` / `claude-opus-5` | per provider |
+| `OLLAMA_BASE_URL` | `http://127.0.0.1:11434/v1` | OpenAI-compatible surface |
+| `ANTHROPIC_API_KEY` | — | **only** required when `AI_PROVIDER=anthropic` |
+| `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | rarely needed |
+
+A fresh clone therefore runs the assistant with no cloud account and no key. Set
+the Anthropic variables through `supabase secrets set` (deployed) or a gitignored
+`apps/backend/supabase/functions/.env` (local) — never in a committed file.
+
+```bash
+pnpm dev:ai:status    # is Ollama up, and is the configured model pulled?
+pnpm dev:ai:pull      # ollama pull $AI_MODEL
+```
+
+### Conventions and gotchas (AI layer)
+
+- **`127.0.0.1` means the container, not your laptop.** Functions served by the
+  local Supabase edge runtime cannot reach a host Ollama on loopback. Set
+  `OLLAMA_BASE_URL=http://host.docker.internal:11434/v1` for locally-served
+  functions. The default stays loopback because that is right everywhere else.
+- **An upstream 404 from Ollama means "not pulled", not "broken".** It is mapped
+  to a message naming the exact `ollama pull` command, and surfaced as a 503.
+- **Digest kinds are a paired union.** The `kind` CHECK constraint and
+  `DIGEST_KINDS` in `_shared/ai/types.ts` must move together — `pnpm
+  check:unions` fails if only one does.
+- **Grounding is fenced.** The payload goes as its own first user turn wrapped in
+  `<CONTEXT>` / `</CONTEXT>`, which the system prompt names as a data boundary,
+  and those markers are stripped from user text on the way in so a note cannot
+  close the block early.
+- **Every context lane scopes `user_id` explicitly.** The store runs with the
+  service role, which bypasses RLS — there is no policy underneath to catch a
+  query that forgot the filter.
+- **Test what was sent, not what came back.** The handler's tests assert the
+  assembled request — system prompt, fenced grounding, task turn, consent
+  ordering — against a fake store and a fake provider stream. Asserting on model
+  prose pins nothing.
+- **A digest is stored with its grounding.** `ai_digests.context` holds the exact
+  payload the body was written from, so "why did it say that?" is answerable and
+  re-opening a digest never silently re-runs the model against different data.
