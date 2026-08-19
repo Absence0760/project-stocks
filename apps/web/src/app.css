@@ -1,0 +1,144 @@
+/* Design tokens. Light by default, dark when the OS asks for it. */
+:root {
+	--bg: #f6f7f9;
+	--surface: #ffffff;
+	--border: #e2e5ea;
+	--text: #16191d;
+	--muted: #626b78;
+	--accent: #0f766e;
+	--accent-contrast: #ffffff;
+	--positive: #0f766e;
+	--negative: #b3261e;
+	--shadow: 0 1px 2px rgb(16 25 45 / 6%), 0 4px 12px rgb(16 25 45 / 4%);
+	--radius: 12px;
+
+	color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #14171b;
+		--surface: #1c2026;
+		--border: #2c323a;
+		--text: #e9edf2;
+		--muted: #9aa4b2;
+		--accent: #2dd4bf;
+		--accent-contrast: #06231f;
+		--positive: #2dd4bf;
+		--negative: #f2857c;
+		--shadow: none;
+	}
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	background: var(--bg);
+	color: var(--text);
+	font-family:
+		ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+		sans-serif;
+	font-size: 15px;
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+	margin: 0;
+	line-height: 1.25;
+}
+
+a {
+	color: inherit;
+}
+
+/* Money and share counts line up column-wise only with tabular figures. */
+.tabular {
+	font-variant-numeric: tabular-nums;
+	font-feature-settings: 'tnum' 1;
+}
+
+.positive {
+	color: var(--positive);
+}
+
+.negative {
+	color: var(--negative);
+}
+
+.muted {
+	color: var(--muted);
+}
+
+.card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow);
+}
+
+button,
+input,
+textarea,
+select {
+	font: inherit;
+	color: inherit;
+}
+
+input,
+textarea,
+select {
+	width: 100%;
+	padding: 0.5rem 0.65rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 8px;
+}
+
+textarea {
+	resize: vertical;
+}
+
+button {
+	cursor: pointer;
+	border-radius: 8px;
+	border: 1px solid var(--border);
+	background: var(--surface);
+	padding: 0.45rem 0.9rem;
+}
+
+button:disabled {
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+
+button.primary {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: var(--accent-contrast);
+	font-weight: 600;
+}
+
+label {
+	display: block;
+	font-size: 0.8rem;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: var(--muted);
+	margin-bottom: 0.25rem;
+}
+
+:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
