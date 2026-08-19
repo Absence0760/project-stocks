@@ -132,6 +132,15 @@ grant select, insert on ai_disclosure_acceptances to authenticated;
 grant select, insert on ai_digests to service_role;
 grant select on ai_disclosure_acceptances to service_role;
 
+-- The four grounding lanes read these as the service role, and the PostgREST
+-- resource embedding that resolves a symbol needs the privilege on the embedded
+-- table too. Read-only on purpose: the assistant never writes the ledger or its
+-- projection. Same reasoning as above — explicit rather than assumed.
+grant select on positions to service_role;
+grant select on theses to service_role;
+grant select on notes to service_role;
+grant select on instruments to service_role;
+
 comment on table ai_digests is
   'AI research-assistant output, stored with the grounding it was generated from.';
 comment on table ai_disclosure_acceptances is
