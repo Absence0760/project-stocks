@@ -7,7 +7,7 @@
 -- frozen, so a second call is a genuine second tick against identical data —
 -- which is exactly the case a schedule-driven implementation gets wrong.
 begin;
-select plan(39);
+select plan(42);
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password,
@@ -274,6 +274,34 @@ select is(
    where id = (select min(id) from claimed)),
   array['queued', '1', 'true'],
   'defer_job re-queues with backoff and leaves the attempt count alone');
+
+-- ---------------------------------------------------------------------------
+-- The grants the server side runs on
+-- ---------------------------------------------------------------------------
+--
+-- service_role bypasses RLS but not the grant layer, and this project's
+-- config.toml exposes new entities to nobody. Every one of these was missing
+-- until the first service-role reader was wired up, which is why they are pinned
+-- rather than assumed: nothing written against a fake store can catch a 42501.
+
+select ok(
+  has_table_privilege('service_role', 'positions', 'select')
+  and has_table_privilege('service_role', 'quotes', 'insert')
+  and has_table_privilege('service_role', 'quotes', 'update'),
+  'the quote refresh can read holdings and write prices');
+
+select ok(
+  has_table_privilege('service_role', 'instruments', 'insert')
+  and has_table_privilege('service_role', 'ingest_runs', 'insert')
+  and has_table_privilege('service_role', 'ingest_runs', 'update')
+  and has_table_privilege('service_role', 'transactions', 'insert')
+  and has_function_privilege('service_role', 'recompute_positions(uuid)', 'execute'),
+  'the import path can resolve instruments, record a run, write the ledger and recompute');
+
+select ok(
+  not has_table_privilege('service_role', 'jobs', 'select')
+  and not has_table_privilege('service_role', 'alert_events', 'insert'),
+  'but reaches the queue and the event log only through their functions');
 
 -- ---------------------------------------------------------------------------
 -- Row-level security

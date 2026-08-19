@@ -420,3 +420,35 @@ revoke all on function defer_job(bigint, integer, text) from public, anon, authe
 grant execute on function claim_job(text, text) to service_role;
 grant execute on function finish_job(bigint, text, text) to service_role;
 grant execute on function defer_job(bigint, integer, text) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- Grants — service_role
+-- ---------------------------------------------------------------------------
+--
+-- `service_role` bypasses RLS but it does NOT bypass the grant layer, and this
+-- project's config.toml leaves `auto_expose_new_tables` unset — the current
+-- Supabase default, under which new entities are exposed to *none* of the Data
+-- API roles. So the key an edge function holds gets "permission denied for table
+-- ..." on every table nobody named here, RLS never entering into it.
+--
+-- Everything below is the minimum the server-side code actually touches through
+-- PostgREST. The queue is deliberately absent: workers reach `jobs` only through
+-- claim_job/finish_job/defer_job, and alert_events only through
+-- alert_delivery()/stamp_alert_delivery(), so a compromised worker cannot rewrite
+-- the queue or forge an event.
+
+-- refresh-quotes: reads what is held, writes the prices.
+grant select on positions to service_role;
+grant select, insert, update on quotes to service_role;
+
+-- The ledger tables, which had the same hole. Found while wiring the first
+-- service-role reader in this repo: import-transactions has been unable to
+-- resolve an instrument, open an ingest run, insert a row, or recompute the
+-- projection since it was written — four 42501s, none of them reachable from a
+-- unit test written against a fake store. Commit c546456 fixed exactly this class
+-- of bug for `authenticated`; `service_role` was never given the same treatment
+-- because nothing had exercised it yet.
+grant select, insert on instruments to service_role;
+grant select, insert, update on ingest_runs to service_role;
+grant select, insert on transactions to service_role;
+grant execute on function recompute_positions(uuid) to service_role;
