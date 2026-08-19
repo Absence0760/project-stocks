@@ -270,12 +270,14 @@ runs:
     #
     # So each probe below names the answer that only the upstream itself
     # can give:
-    #   - the edge runtime by clip-public-track's own 405 (verify_jwt is
-    #     false, so a GET reaches the handler; the 405 is pinned by
-    #     clip-public-track-guards.spec.ts),
-    #   - GoTrue by a real password grant rather than /health, because
-    #     what the suites open with is minting a token, and
-    #   - Storage REST by any answer of its own.
+    #   - PostgREST by an answer of its own on /rest/v1/, which is the
+    #     surface every client here actually talks to, and
+    #   - GoTrue by a real password grant against the seeded user rather
+    #     than /health, because minting a token is what proves both that
+    #     auth is serving and that the seed applied.
+    #
+    # (project-running's copy also probes its edge runtime and Storage;
+    # neither applies here — see the probe block for why.)
     - name: Wait for the stack's sidecars to actually serve
       shell: bash
       working-directory: apps/backend
@@ -304,15 +306,27 @@ runs:
           return 1
         }
 
-        probe "storage REST" '^[234][0-9][0-9]$' \
-          -X POST "http://127.0.0.1:54421/storage/v1/bucket" \
+        # These probes are this project's, not project-running's. The point of
+        # the gate is the documented "supabase start succeeds but nothing
+        # works" failure (docs/STACK.md) — so probe the services that are
+        # actually load-bearing here.
+        #
+        # Deliberately NOT probed:
+        #   - storage: this project stores no objects.
+        #   - the edge runtime: it is known to come up with no functions
+        #     directory mounted at all (docs/STACK.md, "the local edge runtime
+        #     serves no functions"), so gating on it would make every run of
+        #     this job fail on a bug that has nothing to do with the database.
+        #     `supabase test db` talks to Postgres and nothing else.
+        probe "postgrest" '^[234][0-9][0-9]$' \
+          -X GET "http://127.0.0.1:54421/rest/v1/" \
           -H "apikey: $ANON_KEY" -H "authorization: Bearer $ANON_KEY" || exit 1
 
-        probe "edge runtime (clip-public-track)" '^405$' \
-          -X GET "http://127.0.0.1:54421/functions/v1/clip-public-track" \
-          -H "apikey: $ANON_KEY" || exit 1
-
+        # The seeded user from apps/backend/supabase/seed.sql. Proves auth is
+        # serving AND that the seed actually applied — a stack that came up
+        # without its seed would pass a bare health check and then fail every
+        # pgTAP assertion for a reason the log would not name.
         probe "auth password grant" '^200$' \
           -X POST "http://127.0.0.1:54421/auth/v1/token?grant_type=password" \
           -H "apikey: $ANON_KEY" -H 'content-type: application/json' \
-          -d '{"email":"runner@test.com","password":"testtest"}' || exit 1
+          -d '{"email":"investor@test.com","password":"testtest"}' || exit 1
