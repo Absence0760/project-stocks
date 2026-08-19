@@ -128,4 +128,9 @@ insert into alert_rules (user_id, instrument_id, kind, threshold, window_days, n
   ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b1',
    'thesis_review', null, 90, current_date - 7, true, 'Quarterly re-read of the AAPL thesis.');
 
+-- Twice: the first tick fires, the second settles the state a running system
+-- would actually be in — the thesis review has had its date walked forward and
+-- is re-armed, while the price rule stays stamped because its price is still
+-- above the threshold.
+select evaluate_alert_rules();
 select evaluate_alert_rules();
