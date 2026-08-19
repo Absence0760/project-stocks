@@ -37,8 +37,11 @@ env:
   # deliberate bump. Keep in step with project-running's pin.
   FLUTTER_VERSION: "3.47.0"
   # The Supabase CLI version the local stack + pgTAP suite are validated
-  # against. Pinned for the same reason as Flutter.
-  SUPABASE_CLI_VERSION: "2.84.2"
+  # against. Pinned for the same reason as Flutter. Must be new enough to
+  # parse config.toml — 2.84.2 (project-running's pin) rejects the
+  # `[local_smtp]` section this project's config uses, which older CLIs
+  # spelled `[inbucket]`. Keep in step with the workstation's installed CLI.
+  SUPABASE_CLI_VERSION: "2.109.1"
   NODE_VERSION: "22"
 
 jobs:
