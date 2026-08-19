@@ -13,7 +13,7 @@ repo (one subdir per project), never here.
   stack on ports `54421`–`54429`.
 - **apps/mobile/** — Flutter (Android + iOS), Dart workspace member.
 - **apps/web/** — SvelteKit 5 static (`adapter-static`). Dev port `7777`.
-  *Not yet scaffolded.*
+  See "The web app" at the end of this file.
 - **infra/** — Terraform: S3 + CloudFront + Route 53 + ACM + GitHub OIDC.
   *Not yet scaffolded.*
 
@@ -172,3 +172,80 @@ pointed at production must never send a hardcoded credential.
 - Don't let Deno resolve npm packages here. It writes a `workspaces` field into the
   root `package.json` whenever it sees `pnpm-workspace.yaml` nearby, which is the
   dual-workspace drift this repo exists to avoid.
+
+## The web app
+
+`apps/web/` is a SvelteKit 5 (runes) SPA built with `adapter-static` — the same
+laptop-first stack as everything else here, and the shape S3 + CloudFront wants.
+
+```bash
+pnpm dev:run:web             # start it on http://localhost:7777 (needs dev:core)
+pnpm build:web               # static bundle into apps/web/build/
+pnpm check:web               # svelte-kit sync + svelte-check
+pnpm test:web                # vitest
+```
+
+**Static only, and client-rendered.** `src/routes/+layout.ts` sets `ssr = false`
+and `prerender = false` for every route, and the adapter emits `index.html` as
+the SPA fallback. This is not a preference: every page is behind Supabase auth
+and the session lives in browser storage, so a server render has nothing to
+render — and `adapter-static` has no server to render it on. CloudFront serves
+`index.html` for any path that isn't a real object.
+
+**The publishable key is never committed.** `bin/dev-run-web.sh` reads it out of
+`supabase status` and exports it as `PUBLIC_SUPABASE_ANON_KEY` for Vite, exactly
+as `dev-run-mobile.sh` does for its `--dart-define`. The committed
+`apps/web/.env.development` holds only the non-sensitive URL. A committed `.env`
+would put a key in git; a gitignored one would be missing on a fresh clone.
+
+`src/lib/config/env.ts` reads `$env/dynamic/public` rather than
+`$env/static/public` on purpose: the static form is a *compile error* when a
+variable is absent, which would make `pnpm check:web` depend on a running
+Supabase stack.
+
+**Dev auto-login is gated on the host, not the build flag.**
+`src/lib/auth/dev-auto-login.ts` is a port of `core/dev_auto_login.dart`, down to
+the same host list, and `session.ts` combines it with `import.meta.env.DEV` —
+the web's `kDebugMode`. Both conditions are required, so a dev build accidentally
+pointed at production can never send the seeded credential to it. Keep the two
+implementations in step; they exist to agree.
+
+Two things JavaScript makes sharper than Dart did:
+
+- **`URL().hostname` brackets an IPv6 host** (`[::1]`), where Dart's `Uri.host`
+  does not. The gate strips them before comparing, or `::1` would silently stop
+  matching.
+- **`Number('')`, `Number(' ')`, `Number(null)` and `Number([])` are all `0`.**
+  `src/lib/core/json.ts` is the port of `core/json.dart` and rejects every one of
+  those before parsing, so a missing `numeric` reads as absent rather than as a
+  confident zero. Nothing casts a PostgREST value directly.
+- **A bare `date` column must be read as *local* midnight.** ECMAScript parses
+  `'2026-01-12'` as UTC, so a browser west of Greenwich would render a January
+  12th trade as the 11th. `asDateOrNull` builds date-only values from local
+  components, matching `DateTime.parse`, and refuses anything not ISO-shaped.
+
+**Revising a thesis calls the `supersede_thesis` RPC** — never an update on the
+row. The form starts with a blank rationale and carries the entry/exit conditions
+over, same as the mobile editor and for the same reason (see "theses are
+append-only" above).
+
+**Tests are vitest, co-located** beside the module they cover
+(`json.test.ts` next to `json.ts`), so the glob in `vite.config.ts` recurses.
+They cover the numeric parsing, the loopback auth gate, the row parsers and the
+portfolio summary maths — the logic that is wrong silently. The Svelte components
+are not unit-tested; they are thin renderers over those modules.
+
+### Gotcha: the local edge runtime serves no functions
+
+`supabase status` reports the stack healthy while
+`POST /functions/v1/import-transactions` returns **`Function not found`** from the
+edge runtime — the container comes up with no functions directory mounted at all
+(`docker exec supabase_edge_runtime_project-stocks ls /home/deno/functions` →
+no such file). Kong is fine; the preflight returns 200. It is the runtime behind
+it that has nothing to serve, so the CSV import screen cannot complete a real
+import until the stack is restarted (`pnpm dev:db:down && pnpm dev:core`) or the
+functions are served explicitly with `supabase functions serve`.
+
+Check this before assuming the import client is broken: a bare
+`curl -X POST http://127.0.0.1:54421/functions/v1/import-transactions` reproduces
+it without any app involved.
