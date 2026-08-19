@@ -79,6 +79,29 @@ migrated around.
 This shape is forced by the source data: Robinhood's CSV export is a *transactions*
 report, not a positions snapshot, and it only reaches back one year.
 
+## Importing
+
+`POST /functions/v1/import-transactions` with the caller's JWT:
+
+```json
+{ "source": "robinhood-csv", "content": "<the CSV text>" }
+```
+
+Returns `{ ingestRunId, rowsSeen, rowsImported, rowsDuplicate, skipped[] }`. Every
+run is recorded in `ingest_runs` — including failed ones, with the error attached,
+which is how you find out an export changed shape.
+
+Re-importing an overlapping export is a genuine no-op: rows are upserted on
+`(user_id, source, external_id)` with `resolution=ignore-duplicates`, and
+`recompute_positions()` only runs when something was actually written.
+
+Adding an adapter means implementing `IngestAdapter`, registering it in
+`_shared/ingest/handler.ts`, and adding its id to **both** `INGEST_SOURCES` and the
+`source` CHECK constraint — `pnpm check:unions` fails if only one moves.
+
+Get a CSV from Robinhood → Account → Reports and Statements. Generation is
+asynchronous; expect a couple of hours.
+
 ## Conventions and gotchas
 
 - **`amount` is always a positive magnitude.** Direction lives in `type`, never in
