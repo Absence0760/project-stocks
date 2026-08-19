@@ -353,3 +353,150 @@ pnpm dev:ai:pull      # ollama pull $AI_MODEL
 - **A digest is stored with its grounding.** `ai_digests.context` holds the exact
   payload the body was written from, so "why did it say that?" is answerable and
   re-opening a digest never silently re-runs the model against different data.
+## Quotes and condition-based alerts
+
+The ledger says what you own and the thesis journal says why. This is the part
+that tells you **when to look**: prices come in, rules describe conditions over
+them, and an alert fires when a condition becomes true.
+
+```bash
+pnpm dev:quotes:refresh      # price every held instrument (needs dev:core)
+pnpm dev:alerts:evaluate     # run the condition scan now, not in ≤5 minutes
+pnpm dev:alerts:deliver      # drain one pass of the delivery queue
+```
+
+The seed leaves the local stack with quotes for all three instruments and four
+rules, two of which are already true — so a fresh `pnpm dev:db:reset` shows a
+fired alert next to an armed one rather than an empty list.
+
+### The scan is a condition, not a schedule
+
+`evaluate_alert_rules()` runs every five minutes under pg_cron, but the tick is
+not the event. The event is *the condition became true having previously been
+false*, and four things make that hold:
+
+- **Fail-closed everywhere.** A disabled rule, a null threshold, an instrument
+  with no quote, a user with no `alert_preferences` row — every missing or
+  switched-off input resolves to "do not fire" and "do not deliver". Nothing
+  defaults to on.
+- **An occurrence stamp, not a tick counter.** Firing sets
+  `alert_rules.last_fired_at`; while it is set the rule is out of the firing scan
+  entirely. A second pass clears it the moment the condition stops holding. A
+  price that sits above its threshold for a week alerts once, and alerts again on
+  the next crossing.
+- **The stamp is written by the statement that selects the rows**, and the UPDATE
+  re-asserts `last_fired_at is null` on its target, so two overlapping ticks
+  cannot both fire one rule — the loser's row no longer matches.
+- **A partial index per pass, predicate identical to the pass's WHERE.**
+  `alert_rules_armed_idx` is `where enabled and last_fired_at is null`;
+  `alert_rules_stamped_idx` is its complement.
+
+Delivery is enqueued, never inline: an `AFTER INSERT` trigger on `alert_events`
+writes one `jobs` row per channel the recipient has actually enabled. A dead push
+endpoint must not roll back the transaction that noticed the condition.
+
+`alert_rule_evaluations` is the view that defines the condition — one definition,
+read by both passes. It is granted to `authenticated` with `security_invoker`, so
+"why has my alert not fired?" is a question a client can answer about its own
+rules.
+
+### Kinds
+
+| kind | fires when | uses |
+| --- | --- | --- |
+| `price_above` | latest price ≥ `threshold` | `instrument_id`, `threshold` |
+| `price_below` | latest price ≤ `threshold` | `instrument_id`, `threshold` |
+| `pct_move` | \|price − reference\| / reference ≥ `threshold`% | + `window_days` |
+| `thesis_review` | `next_review_on` ≤ today | `next_review_on`, `window_days` |
+
+`pct_move`'s reference is the most recent quote at least `window_days` old,
+falling back to the latest quote's `previous_close` before that much history
+exists. With neither, the rule does not fire — an unanswerable condition is not a
+true one.
+
+### Providers and channels — local by default
+
+Every external service here has a local equivalent and a default that points at
+it, so a fresh clone refreshes quotes and delivers alerts with no account
+anywhere:
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `QUOTE_PROVIDER` | `stub` | or `finnhub` |
+| `FINNHUB_API_KEY` | — | **only** required when `QUOTE_PROVIDER=finnhub` |
+| `PUSH_PROVIDER` | `stub` | `fcm`, or `none` |
+| `FCM_PROJECT_ID`, `FCM_SERVICE_ACCOUNT` | — | only when `PUSH_PROVIDER=fcm` |
+| `EMAIL_PROVIDER` | `stub` | `resend`, or `none` |
+| `RESEND_API_KEY`, `ALERT_EMAIL_FROM` | — | only when `EMAIL_PROVIDER=resend` |
+
+The stub quote provider's prices are a pure function of (symbol, UTC day):
+stable within a day, different per symbol, moving overnight. The stub senders
+"deliver" by logging — deliberately including the stamp, so the dev loop
+exercises the same path a deployment will.
+
+Set the real values with `supabase secrets set` (deployed) or a gitignored
+`apps/backend/supabase/functions/.env` (local) — never in a committed file.
+
+### Endpoints
+
+Both take the **service role key**, not a user JWT: the refresh is global (two
+users holding AAPL are one price to fetch) and spends a rate-limited quota, and
+the delivery worker acts on everyone's queue.
+
+```
+POST /functions/v1/refresh-quotes   → { provider, instruments, quotesWritten, failures[] }
+POST /functions/v1/deliver-alerts   → { claimed, delivered, alreadyDelivered, deferred, failed, skippedChannels[] }
+```
+
+### Conventions and gotchas (quotes and alerts)
+
+- **`service_role` bypasses RLS but not grants, and this project grants it
+  nothing by default.** `config.toml` leaves `auto_expose_new_tables` unset (the
+  current Supabase default), under which new tables are exposed to *no* Data API
+  role — `anon`, `authenticated` and `service_role` alike. Every server-side
+  table read needs an explicit `grant … to service_role` in the migration that
+  creates the table. This was found the hard way: `import-transactions` had been
+  unable to resolve an instrument, open a run, write a row or recompute since it
+  was written — four `42501`s, none reachable from a unit test against a fake
+  store. Fixed in `20260819140000`; pinned by `alerts_test.sql`.
+- **A partial index whose predicate drifts from its scan does not get slower, it
+  stops being used.** Postgres only picks a partial index when it can prove the
+  query's qual implies the index predicate. `alerts_test.sql` plans the real scan
+  with `enable_seqscan = off` and fails if the plan is not an index scan over
+  `alert_rules_armed_idx` — checking the predicate text alone would not catch a
+  scan that had moved.
+- **`last_fired_at` is server-derived and not client-writable.** Postgres cannot
+  revoke one column out of a table-level grant, so `alert_rules`' UPDATE grant is
+  per-column. **A new client-writable column on `alert_rules` must be added to
+  that grant list in `20260819140100`**, or writes to it fail with "permission
+  denied for column".
+- **`window_days` means two different things** — the `pct_move` lookback, and the
+  `thesis_review` cadence. It is unused by the two price kinds.
+- **Three more paired unions.** `ALERT_KINDS` ↔ `alert_rules.kind`, `JOB_KINDS` ↔
+  `jobs.kind`, and `QUOTE_SOURCES` ↔ `quotes.source` all move together or
+  `pnpm check:unions` fails. The `jobs.kind` pair earns its keep: a fan-out
+  enqueuing a kind the CHECK rejects aborts the scan's whole transaction.
+- **A missing credential must never stamp `*_sent_at`.** An unconfigured channel
+  reports `configured: false` and the worker does not even *claim* its jobs — they
+  sit at `attempts = 0` until a credentialed deploy drains them. Claiming and
+  failing would spend the retry budget against a missing credential and turn
+  "Firebase is not set up yet" into "those alerts are gone".
+- **The stamp is written before the job is finished.** A crash in between leaves a
+  visible `running` job that a re-drain finishes without re-sending (it sees the
+  stamp); the other order would lose the delivery silently.
+- **`deliver-alerts` is deliberately not scheduled from pg_cron.** Calling an edge
+  function from the database means keeping a service-role key inside the database
+  for `pg_net` to present, and a standing credential in a table is a real secret
+  in a place this project does not put secrets. The scheduler belongs to the
+  deployment (a platform cron presenting the key from the secret store); locally,
+  `pnpm dev:alerts:deliver` runs a pass by hand.
+- **Finnhub's free tier is 60 calls a minute, which only holds if you space
+  them.** The provider walks symbols serially with a minimum interval rather than
+  firing them in parallel, and the key travels in an `X-Finnhub-Token` header so
+  it never lands in a URL that some log keeps.
+- **A named provider with a missing key is an error, not a fallback.** Quietly
+  serving stub prices to a live portfolio — and firing real alerts off them — is
+  worse than a refresh that refuses to run.
+- **Push tokens live on `alert_preferences.push_tokens`,** not in a device
+  registry table: a token is a per-user preference with no lifecycle of its own,
+  and the set is single digits.

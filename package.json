@@ -39,6 +39,11 @@
     "test:web": "pnpm -C apps/web test",
     "//-- ai --": "Local LLM behind the research assistant. Ollama on 11434; AI_PROVIDER defaults to it, so no cloud key is needed. Model from AI_MODEL (default llama3.2). See docs/STACK.md \u00a7 The AI research assistant.",
     "dev:ai:status": "bash bin/dev-ai.sh status",
-    "dev:ai:pull": "bash bin/dev-ai.sh pull"
+    "dev:ai:pull": "bash bin/dev-ai.sh pull",
+
+    "//-- alerts --": "Quotes and condition alerts, run by hand instead of waiting for pg_cron's 5-minute tick. QUOTE_PROVIDER defaults to the local stub (Finnhub needs FINNHUB_API_KEY); both delivery channels default to a logging sender.",
+    "dev:quotes:refresh": "bash bin/dev-alerts.sh refresh-quotes",
+    "dev:alerts:evaluate": "bash bin/dev-alerts.sh evaluate",
+    "dev:alerts:deliver": "bash bin/dev-alerts.sh deliver"
   }
 }
