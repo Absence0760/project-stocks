@@ -114,3 +114,7 @@ backend.config
 **/android/key.properties
 *.jks
 *.keystore
+
+# Claude Code creates agent worktrees here. They are real checkouts of this repo
+# and must never be committed into it.
+.claude/worktrees/

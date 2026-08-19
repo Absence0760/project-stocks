@@ -1,30 +1,91 @@
-# Base scaffolding
+# project-stocks
 
-You're on the `base` branch of the `templates` repo. This branch holds only the shared scaffolding that every template inherits — there's no app code here.
+A personal portfolio tracker and thesis journal. It reads your holdings, keeps the
+reasons you bought each one, reminds you when a condition you wrote down is met,
+and puts an AI research assistant over the top.
 
-**To start a new project, clone a template branch instead** — see `main` for the index.
+**Read + notify only. It never places a trade.**
 
-## What lives here
+## Why it's shaped this way
 
-| Path | Purpose |
-| --- | --- |
-| `CLAUDE.md` | Repo-wide Claude Code guidance (stack-agnostic; per-template stack details go in `docs/STACK.md`). |
-| `.claude/settings.json` | Default permissions allowlist + denylist for Claude Code. |
-| `.github/workflows/security.yml` | CodeQL static analysis on every push/PR + weekly cron. |
-| `.github/dependabot.yml` | Grouped weekly dependency PRs (npm, pip, terraform, GitHub Actions). |
-| `.gitignore` | Common patterns (node_modules, dist, .env, .terraform, etc.). |
-| `.editorconfig` | 2-space default, 4 for py/go, LF line endings. |
-| `.pre-commit-config.yaml` | gitleaks + a few hygiene hooks. Install with `pre-commit install`. |
-| `SECURITY.md` | Vulnerability reporting policy. |
-| `LICENSE` | MIT. |
+**Robinhood has no equities API.** The only official developer API is for crypto;
+there is no equities key and no read-only scope for stock positions.
+Reverse-engineered endpoints violate the terms of service and risk account
+suspension, so this project doesn't use them. Data arrives through sanctioned
+paths instead:
 
-## How sync works
+- **Robinhood CSV export** — works today, no approvals.
+- **SnapTrade** — read-only OAuth against Robinhood's own site. Free for a single
+  connection. *Planned; the adapter interface is already in place.*
 
-The `main` branch has `scripts/sync-base.sh`. It treats the paths above as a contract: when you change any of them on `base`, the script propagates those exact files into every template branch (file copy, not merge — no conflicts). Template-specific files are never touched.
+That export is a **transactions** report capped at one year of history, not a
+positions snapshot. So the transaction ledger is the source of truth and positions
+are derived from it by FIFO replay — which also gets you cost basis and tax lots
+for free. A holding older than the export window enters as an `opening_balance`
+row rather than as a special case in code.
 
-To change shared scaffolding:
+**The AI layer is a research assistant, not a stock picker.** It is never asked to
+predict a price or recommend a trade. It summarises a position against *the thesis
+you wrote*, flags when *your own* exit condition looks met, drafts the digest, and
+notices when you've written the same worry three times. Asked to forecast, an LLM
+produces fluent, confident, backward-looking narrative — which is the failure mode
+this framing avoids.
 
-1. Commit the change on `base`.
-2. From `main`, run `./scripts/sync-base.sh`.
+## Quick start
 
-If you want a template-specific override, the path stops being base-owned (remove it from `BASE_OWNED_PATHS` in `scripts/sync-base.sh`).
+Needs Docker, and [Supabase CLI](https://supabase.com/docs/guides/cli), Deno, pnpm,
+Flutter on PATH.
+
+```bash
+pnpm install
+pnpm dev:core        # local Supabase stack on 54421-54429
+pnpm dev:run:web     # http://localhost:7777
+```
+
+Debug builds against a loopback host sign in automatically as the seeded user, so
+the portfolio is on screen immediately. No env setup, no cloud account, no API key
+— every external dependency ships a local equivalent and defaults to it.
+
+**Seed login:** `investor@test.com` / `testtest`
+
+```bash
+pnpm dev:run:mobile  # the Flutter app
+pnpm dev:down        # stop everything this project started
+pnpm test            # 314 tests across four surfaces
+pnpm check           # typecheck, analyze, format, drift guards
+```
+
+## Layout
+
+```
+apps/backend/    Supabase — Postgres, Auth, Deno edge functions
+apps/web/        SvelteKit 5 static SPA (dev port 7777)
+apps/mobile/     Flutter (Android + iOS)
+infra/           Terraform — S3 + CloudFront + Route 53 + OIDC
+bin/, scripts/   dev loop, structure guards
+docs/STACK.md    how it works, conventions, and the gotchas worth not re-deriving
+```
+
+## Where to look
+
+**[`docs/STACK.md`](docs/STACK.md)** is the canonical doc — stack, commands, data
+model, and a list of gotchas that each cost real time to find. Read it before
+changing anything.
+
+## Ports
+
+This machine runs more than one local Supabase stack, so this project is offset
+`+100` from the defaults (`54421`–`54429`) and `pnpm dev:down` is pinned to its own
+project id. `supabase start` **exits 0 even when it fails to bind a port and rolls
+back** — if a start looks successful but nothing works, check `docker ps` before
+believing it.
+
+## Status
+
+Working: the ledger and FIFO derivation, CSV import, theses and notes, quotes and
+condition-based alerts, the AI digest, web and mobile clients.
+
+Not yet: SnapTrade ingest, and a scheduler for alert delivery in production
+(`deliver-alerts` is deliberately not wired to `pg_cron`, which would mean storing
+a service-role key in the database). Nothing is deployed — the Terraform is
+validated but has never been applied.
