@@ -26,6 +26,11 @@ declare
   v_proceeds    numeric(20, 8);
   v_cost_removed numeric(20, 8);
 begin
+  -- The `drop table if exists` pair below is a no-op on the common path (the temp
+  -- tables are ON COMMIT DROP) but emits a NOTICE every call, which drowns real
+  -- output in test runs. Scoped to this transaction only.
+  perform set_config('client_min_messages', 'warning', true);
+
   drop table if exists _fifo_lots;
   create temp table _fifo_lots (
     seq                    bigserial primary key,

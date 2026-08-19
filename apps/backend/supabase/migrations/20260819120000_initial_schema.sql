@@ -167,3 +167,21 @@ create policy "users read their position lots"
   on position_lots for select
   to authenticated
   using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Grants
+-- ---------------------------------------------------------------------------
+--
+-- RLS policies are a filter, not a grant. A role with no table privilege is
+-- refused before any policy is consulted ("permission denied for table ..."),
+-- so every table reachable by a client needs both. Tables created by a migration
+-- do not inherit privileges from anywhere — these have to be explicit.
+--
+-- The projection tables are deliberately SELECT-only: recompute_positions() is
+-- SECURITY DEFINER and writes as the owner, so clients never need write access.
+
+grant select on instruments to authenticated;
+grant select, insert, update, delete on transactions to authenticated;
+grant select, insert, update, delete on ingest_runs to authenticated;
+grant select on positions to authenticated;
+grant select on position_lots to authenticated;
