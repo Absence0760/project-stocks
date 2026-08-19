@@ -1,0 +1,15 @@
+{
+  "name": "@project-stocks/backend",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "db:up": "supabase start",
+    "db:down": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:status": "supabase status",
+    "test:unit": "deno test --quiet supabase/functions/",
+    "test:db": "supabase test db",
+    "check": "deno check supabase/functions/",
+    "gen:types": "supabase gen types typescript --local > supabase/functions/_shared/database.types.ts"
+  }
+}
