@@ -121,6 +121,17 @@ create policy "users delete their digests"
 grant select, delete on ai_digests to authenticated;
 grant select, insert on ai_disclosure_acceptances to authenticated;
 
+-- The ai-digest function reads the consent row and writes the digest with the
+-- service role. `service_role` bypasses RLS but still needs the privilege, and
+-- this project leaves `auto_expose_new_tables` unset in config.toml — whose own
+-- documentation says new entities are then NOT auto-exposed to `anon`,
+-- `authenticated` *or* `service_role`. Explicit here rather than assumed: if the
+-- default grants do still exist these are a harmless no-op, and if they do not,
+-- their absence is a `permission denied for table ai_digests` at the first
+-- digest.
+grant select, insert on ai_digests to service_role;
+grant select on ai_disclosure_acceptances to service_role;
+
 comment on table ai_digests is
   'AI research-assistant output, stored with the grounding it was generated from.';
 comment on table ai_disclosure_acceptances is
