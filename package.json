@@ -9,26 +9,22 @@
   "scripts": {
     "//-- setup --": "One-time bootstrap after a fresh clone. Needs Docker running.",
     "setup": "bash scripts/setup.sh",
-
-    "//-- dev --": "Local stack. Supabase on 54421-54429 — offset +100 so it coexists with project-running's stack on 54321-54327.",
+    "//-- dev --": "Local stack. Supabase on 54421-54429 \u2014 offset +100 so it coexists with project-running's stack on 54321-54327.",
     "dev:core": "bash bin/dev-core.sh",
     "dev:db:up": "pnpm -C apps/backend db:up",
     "dev:db:down": "pnpm -C apps/backend db:down",
     "dev:db:reset": "pnpm -C apps/backend db:reset",
     "dev:db:status": "pnpm -C apps/backend db:status",
-
     "//-- test --": "Deno unit tests for edge functions and ingest adapters; pgTAP for schema, FIFO derivation and RLS.",
     "test": "pnpm run test:backend",
     "test:backend": "pnpm run test:backend:unit && pnpm run test:backend:db",
     "test:backend:unit": "pnpm -C apps/backend test:unit",
     "test:backend:db": "pnpm -C apps/backend test:db",
     "test:scripts": "node scripts/check_root_scripts.mjs",
-
     "//-- check --": "Typecheck and constraint-union drift guards.",
     "check": "pnpm run check:backend && pnpm run check:unions",
     "check:backend": "pnpm -C apps/backend check",
     "check:unions": "node scripts/check_constraint_unions.mjs",
-
     "//-- gen --": "Regenerate database.types.ts from the live local schema. Commit the result.",
     "gen:types": "pnpm -C apps/backend gen:types"
   }
