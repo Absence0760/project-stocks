@@ -1,0 +1,12 @@
+# Partial backend config — copy to infra/backend.config (gitignored) and fill
+# in the actual bucket name, then run:
+#
+#   terraform init -backend-config=backend.config
+#
+# The bucket is created by the cross-project bootstrap with the name
+# `<bootstrap-slug>-tfstate-<account-id>`. Look it up either from the
+# bootstrap script's final summary, or:
+#
+#   aws s3 ls --profile <profile> | grep tfstate
+
+bucket = "replace-me-with-tfstate-bucket-name"

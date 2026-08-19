@@ -1,0 +1,54 @@
+# Copy this file to terraform.tfvars and fill in the values.
+# terraform.tfvars is gitignored — secrets stay out of source control.
+
+# Primary AWS region.
+aws_region = "us-east-1"
+
+# Apex domain for the site (no protocol, no trailing slash).
+# For the bootstrap-aware flow, this is the child zone the bootstrap
+# created — typically <project>.<parent-domain>.
+domain_name = "example.com"
+
+# Route 53 hosted zone ID for the apex domain. The bootstrap creates this
+# (look it up in the bootstrap's summary output, or via:
+#   aws route53 list-hosted-zones-by-name --dns-name example.com).
+route53_zone_id = "Z0000000000000000000"
+
+# GitHub repo in 'owner/name' form. Surfaced via tags; reserved for
+# future use (e.g. cross-account log enrichment).
+github_repo = "Absence0760/project-stocks"
+
+# Project slug used by the cross-project bootstrap when creating the
+# OIDC deploy role. MUST match the slug new-project-account.sh was run
+# with — the deploy role is named `<bootstrap_slug>-deploy`.
+bootstrap_slug = "project-stocks"
+
+# Optional: override the base URL used in links. Defaults to https://<domain_name>.
+site_url = ""
+
+# WAF: requests per IP per 5-minute rolling window. AWS min 100; default 1000.
+# Tighten if you're seeing automated abuse, loosen if real users are blocked.
+waf_rate_limit_per_ip = 1000
+
+# Budget: monthly USD ceiling. Forecasted + actual notifications fire SNS
+# at 50% / 100% / forecasted 100%. Set to 0 to skip budget creation
+# entirely (not recommended for prod). REQUIRES IAM billing access on
+# the member account (one-time root toggle).
+budget_monthly_usd = 25
+
+# Optional: SNS email subscription for budget + per-resource alarms.
+# Leave empty to skip the subscription (alarms still fire in the
+# console, but nobody is paged).
+budget_alert_email = "you+aws-alerts@example.com"
+
+# Lambda CloudWatch log retention in days.
+
+# Lambda concurrency cap. Bounds worst-case spend during an attack.
+# Requires the account's UnreservedConcurrentExecutions quota >= 10
+# (Service Quotas → Lambda → Concurrent executions). Set to -1 to use
+# the account's unreserved pool (not recommended).
+
+# Supabase project URL the frontend build targets. The publishable key is NOT
+# set here — it would land in remote state for no benefit. Set it directly as a
+# GitHub Actions variable.
+supabase_url = "https://<your-project-ref>.supabase.co"
