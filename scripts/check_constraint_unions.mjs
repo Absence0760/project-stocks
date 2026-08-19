@@ -16,6 +16,8 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const SCHEMA = join(repoRoot, "apps/backend/supabase/migrations/20260819120000_initial_schema.sql");
 const TYPES = join(repoRoot, "apps/backend/supabase/functions/_shared/ingest/types.ts");
+const AI_SCHEMA = join(repoRoot, "apps/backend/supabase/migrations/20260819150000_ai_digests.sql");
+const AI_TYPES = join(repoRoot, "apps/backend/supabase/functions/_shared/ai/types.ts");
 
 /** Each pair: a CHECK constraint in SQL and the const array it must match. */
 const PAIRS = [
@@ -28,6 +30,11 @@ const PAIRS = [
     label: "transaction type",
     sql: { file: SCHEMA, table: "transactions", column: "type" },
     ts: { file: TYPES, constName: "TRANSACTION_TYPES" },
+  },
+  {
+    label: "digest kind",
+    sql: { file: AI_SCHEMA, table: "ai_digests", column: "kind" },
+    ts: { file: AI_TYPES, constName: "DIGEST_KINDS" },
   },
 ];
 

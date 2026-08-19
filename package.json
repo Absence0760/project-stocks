@@ -35,6 +35,10 @@
     "dev:run:web": "bash bin/dev-run-web.sh",
     "build:web": "pnpm -C apps/web build",
     "check:web": "pnpm -C apps/web check",
-    "test:web": "pnpm -C apps/web test"
+    "test:web": "pnpm -C apps/web test",
+
+    "//-- ai --": "Local LLM behind the research assistant. Ollama on 11434; AI_PROVIDER defaults to it, so no cloud key is needed. Model from AI_MODEL (default llama3.2). See docs/STACK.md \u00a7 The AI research assistant.",
+    "dev:ai:status": "bash bin/dev-ai.sh status",
+    "dev:ai:pull": "bash bin/dev-ai.sh pull"
   }
 }
