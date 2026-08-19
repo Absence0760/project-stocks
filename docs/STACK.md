@@ -11,14 +11,19 @@ repo (one subdir per project), never here.
 
 - **apps/backend/** — Supabase: Postgres 17, Auth, Deno Edge Functions. Local
   stack on ports `54421`–`54429`.
-- **apps/mobile/** — Flutter (Android + iOS). *Not yet scaffolded.*
+- **apps/mobile/** — Flutter (Android + iOS), Dart workspace member.
 - **apps/web/** — SvelteKit 5 static (`adapter-static`). Dev port `7777`.
   *Not yet scaffolded.*
 - **infra/** — Terraform: S3 + CloudFront + Route 53 + ACM + GitHub OIDC.
   *Not yet scaffolded.*
 
-pnpm workspace for JS; Deno for edge functions; melos for the Dart packages once
-mobile lands. Node `>=22`.
+pnpm workspace for JS; Deno for edge functions; a native Dart `workspace:` for
+Flutter. Node `>=22`, Flutter 3.44+.
+
+**No melos.** With a single Dart package it orchestrates nothing `flutter test`
+doesn't already do. Reintroduce it when the web companion adds shared packages —
+that's also when `packages/{core_models,ui_kit,api_client}` should be extracted,
+not before (`CLAUDE.md` § no preemptive abstraction).
 
 > **Ports are offset +100 from the Supabase defaults on purpose.** `project-running`
 > also runs a local Supabase stack and holds `54321`–`54327`. Two stacks cannot
@@ -35,10 +40,14 @@ pnpm dev:db:reset            # re-apply migrations + seed
 pnpm dev:db:status           # ports and service health
 pnpm dev:db:down             # stop the stack
 
+pnpm setup:mobile            # resolve the Dart workspace
+pnpm dev:run:mobile          # run the Flutter app against the local stack
+
 pnpm test                    # everything
 pnpm test:backend:unit       # deno tests (edge functions, ingest adapters)
 pnpm test:backend:db         # pgTAP (schema, FIFO derivation, RLS)
-pnpm check                   # typecheck edge functions
+pnpm test:mobile             # flutter test
+pnpm check                   # typecheck edge functions + analyze/format Dart
 pnpm gen:types               # regenerate database.types.ts from the live schema
 ```
 
@@ -102,6 +111,17 @@ Adding an adapter means implementing `IngestAdapter`, registering it in
 Get a CSV from Robinhood → Account → Reports and Statements. Generation is
 asynchronous; expect a couple of hours.
 
+## The app
+
+`dev:run:mobile` reads the Supabase publishable key out of `supabase status` and
+passes it as a `--dart-define`. It is never written to a file or committed: a
+bundled `.env` asset would have to be gitignored (and then missing from the asset
+path) or committed (and then a key in git).
+
+Debug builds pointed at a **loopback host** sign in as the seeded user
+automatically. The gate is on the host, not just `kDebugMode` — a debug build
+pointed at production must never send a hardcoded credential.
+
 ## Conventions and gotchas
 
 - **`amount` is always a positive magnitude.** Direction lives in `type`, never in
@@ -122,6 +142,17 @@ asynchronous; expect a couple of hours.
   `INGEST_SOURCES` TypeScript union must move together.
 - **Columns resolve by alias list, never by position** — broker exports get
   reordered and renamed between revisions.
+- **Theses are append-only.** Revising writes a new row and stamps the old via
+  `supersede_thesis()`. The editor deliberately starts from a blank rationale:
+  pre-filling invites editing history rather than recording a change of mind.
+- **`setState` takes a block body, not an arrow**, when assigning a Future.
+  `setState(() => _future = load())` returns the Future from the callback and
+  trips a framework assertion at runtime.
+- **Postgres `numeric` can arrive as a String.** Every numeric read goes through
+  `core/json.dart` rather than casting, or a list builder throws at runtime.
+- **Dart workspace `dependency_overrides` belong in the root `pubspec.yaml`**, not
+  on a member — a per-member override is a workspace-wide claim, and two members
+  declaring the same one collide.
 
 ## What not to do
 
@@ -137,3 +168,7 @@ asynchronous; expect a couple of hours.
   pnpm/npm lockfiles drift, to the point its audit workflow has to OR two exit codes.
 - Don't parse dates with `new Date("3/14/2026")`. It resolves against the runtime's
   timezone and can shift a trade by a day.
+- Don't edit a thesis in place. Supersede it — the history is the product.
+- Don't let Deno resolve npm packages here. It writes a `workspaces` field into the
+  root `package.json` whenever it sees `pnpm-workspace.yaml` nearby, which is the
+  dual-workspace drift this repo exists to avoid.
