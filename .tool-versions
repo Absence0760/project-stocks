@@ -3,8 +3,10 @@
 # Run `asdf install` (or `mise install`) in this directory to materialise
 # everything listed below. The format is `<plugin> <version>` per line.
 #
-# Per-template adjustments: uncomment the toolchains this project actually
-# uses and delete the ones it doesn't. Pinning a version here is a stronger
+# This project builds a Supabase/Deno backend, a SvelteKit web app and a
+# Flutter mobile app, so nodejs, deno and flutter are all live here. The
+# flutter pin matches ci.yml's FLUTTER_VERSION — bump them together, or CI
+# and a laptop stop agreeing. Pinning a version here is a stronger
 # guarantee than `engines` in package.json or `requires-python` in
 # pyproject.toml because asdf shims the binary itself.
 
@@ -13,7 +15,7 @@ nodejs 22
 # python 3.14
 # rust 1.84.0
 # golang 1.23.5
-# flutter 3.27.1
+flutter 3.47.0
 # terraform 1.15.0
 # zola 0.22.1
-# deno 2.1.5
+deno 2.9.3
