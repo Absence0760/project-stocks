@@ -99,3 +99,18 @@ backend.config
 # directory-level ignore would defeat the negation.
 /reviews/*
 !/reviews/README.md
+
+# --- Dart / Flutter -------------------------------------------------------
+# The workspace root resolves for every member, so .dart_tool/ and the shared
+# pubspec.lock live here rather than under apps/mobile.
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+**/ios/Flutter/ephemeral/
+**/ios/Pods/
+**/ios/.symlinks/
+**/android/.gradle/
+**/android/local.properties
+**/android/key.properties
+*.jks
+*.keystore

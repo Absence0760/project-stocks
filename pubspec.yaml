@@ -1,0 +1,13 @@
+# Dart workspace root. Members resolve against one shared lockfile.
+#
+# dependency_overrides MUST live here, not on a member: in a Dart workspace a
+# per-member override is a workspace-wide claim, and two members declaring the
+# same one collide with "the package X is overridden in both".
+name: project_stocks_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.12.2
+
+workspace:
+  - apps/mobile
