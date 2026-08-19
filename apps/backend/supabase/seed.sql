@@ -64,3 +64,33 @@ insert into transactions (
    'opening_balance', '2025-08-01', 25, 240.00, 6000.00, 0, 'manual', 'seed-vti-open-1');
 
 select recompute_positions('00000000-0000-0000-0000-0000000000a1');
+
+-- Theses and notes for the dev portfolio. AAPL carries a superseded thesis as
+-- well as a live one, so the history view has something to show.
+insert into theses (user_id, instrument_id, rationale, entry_conditions, exit_conditions, conviction, written_at, superseded_at) values
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b1',
+   'Services margin expansion is underappreciated; hardware is a floor, not the story.',
+   'Add below $180.', 'Trim if services growth drops under 10% for two quarters.',
+   4, '2026-01-12 09:00+00', '2026-05-04 09:00+00'),
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b1',
+   'Still holding, but the services thesis is only half working — growth decelerating.',
+   null, 'Exit the remaining position if the next quarter misses again.',
+   3, '2026-05-04 09:00+00', null),
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b2',
+   'Cloud capex cycle plus a real per-seat AI attach rate. Multi-year hold.',
+   'Already in.', 'Reassess if Azure growth falls below 20%.',
+   5, '2026-03-02 09:00+00', null);
+
+insert into notes (user_id, instrument_id, body, created_at) values
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b1',
+   'Q2 call: services growth 8.4%, second miss in a row. This is the exit condition I wrote in January.',
+   '2026-05-02 16:30+00'),
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b1',
+   'Sold 6 shares. Kept the rest — want one more quarter before deciding.',
+   '2026-05-04 09:15+00'),
+  ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000b2',
+   'Azure 31% again. Thesis intact, nothing to do.',
+   '2026-06-20 11:00+00'),
+  ('00000000-0000-0000-0000-0000000000a1', null,
+   'Portfolio is drifting concentrated in large-cap tech. Worth a rebalance look next quarter.',
+   '2026-07-01 08:00+00');
