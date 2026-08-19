@@ -1,0 +1,160 @@
+# Release-gated production deploy.
+#
+# Three gates, per the estate pattern in deploy.yml.example:
+#   1. Tag filter        — only `web-v*` non-prerelease tags reach AWS.
+#   2. Concurrency group — one production deploy at a time.
+#   3. environment: production — required reviewer, and the OIDC `:sub` claim
+#      the deploy role's trust policy pins. An environment with no required
+#      reviewer defeats the gate.
+#
+# Backend deploys first so the static site never points at a schema it predates.
+# "Backend" here is Supabase (hosted) — migrations and edge functions — not AWS
+# compute; this project has none.
+
+name: Deploy web (release-gated)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to deploy (must start with web-v).'
+        required: true
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # OIDC
+
+env:
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+  TAG_PREFIX: web
+
+jobs:
+  # Gate 1 — cheap pre-check, so a wrong tag never burns a reviewer approval.
+  guard:
+    name: Tag filter
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+    steps:
+      - id: check
+        env:
+          PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          tag="$RELEASE_TAG"
+          if [[ -z "$tag" ]]; then
+            echo "No tag — refusing to deploy." >&2
+            echo "should_deploy=false" >>"$GITHUB_OUTPUT"; exit 0
+          fi
+          if [[ "$tag" != ${TAG_PREFIX}-v* ]]; then
+            echo "Tag '$tag' isn't a deploy tag (expected '${TAG_PREFIX}-v*')." >&2
+            echo "should_deploy=false" >>"$GITHUB_OUTPUT"; exit 0
+          fi
+          if [[ "$PRERELEASE" == "true" ]]; then
+            echo "Prerelease '$tag' — skipping production deploy." >&2
+            echo "should_deploy=false" >>"$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "Deploying '$tag'."
+          echo "should_deploy=true" >>"$GITHUB_OUTPUT"
+
+  deploy-backend:
+    name: Deploy Supabase migrations and functions
+    needs: guard
+    if: needs.guard.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      # Installed from the release archive rather than a marketplace action:
+      # every `uses:` in this estate must be pinned to a 40-char SHA, and adding
+      # an action just to install one binary is not worth the supply-chain edge.
+      - name: Install the Supabase CLI
+        env:
+          SUPABASE_VERSION: '2.109.1'
+        run: |
+          curl -fsSL -o /tmp/supabase.tar.gz \
+            "https://github.com/supabase/cli/releases/download/v${SUPABASE_VERSION}/supabase_linux_amd64.tar.gz"
+          tar -xzf /tmp/supabase.tar.gz -C /tmp
+          sudo install /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+
+      # Migrations run before functions: a function deployed against a schema
+      # that hasn't landed yet fails closed on its first request.
+      - name: Push migrations
+        working-directory: apps/backend
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref "${{ vars.SUPABASE_PROJECT_REF }}"
+          supabase db push
+
+      - name: Deploy edge functions
+        working-directory: apps/backend
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy --project-ref "${{ vars.SUPABASE_PROJECT_REF }}"
+
+  deploy-frontend:
+    name: Deploy web to S3 + CloudFront
+    needs: [guard, deploy-backend]
+    if: needs.guard.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Both values are non-sensitive and baked into the bundle at build time.
+      # The publishable key is a GitHub *variable*, not a secret, and is
+      # deliberately not a Terraform input — it would land in remote state for
+      # no benefit.
+      - name: Build
+        env:
+          PUBLIC_SUPABASE_URL: ${{ vars.PUBLIC_SUPABASE_URL }}
+          PUBLIC_SUPABASE_ANON_KEY: ${{ vars.PUBLIC_SUPABASE_ANON_KEY }}
+        run: pnpm -C apps/web build
+
+      - uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: deploy-web-${{ env.RELEASE_TAG }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Hashed assets are immutable and safe to cache hard; the HTML entry point
+      # must not be, or a viewer keeps the old shell after an invalidation.
+      - name: Sync to S3
+        run: |
+          aws s3 sync apps/web/build/ "s3://${{ vars.FRONTEND_BUCKET }}/" \
+            --delete --exclude '*.html' --cache-control 'public,max-age=31536000,immutable'
+          aws s3 sync apps/web/build/ "s3://${{ vars.FRONTEND_BUCKET }}/" \
+            --delete --exclude '*' --include '*.html' --cache-control 'no-cache'
+
+      - name: Invalidate CloudFront
+        run: |
+          inv=$(aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths '/*' --query 'Invalidation.Id' --output text)
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --id "$inv"
