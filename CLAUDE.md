@@ -105,7 +105,7 @@ These ship with placeholder examples and need per-project adaptation — see `.c
 
 - `docs/STACK.md` — the canonical "what is this and how do I run it" doc (template-owned)
 - `docs/` — additional architecture/deployment/security docs (template-owned)
-- `.github/workflows/gitleaks.yml` — secret scanning (base-owned)
+- `.github/workflows/secret-scan.yml` — secret scanning, TruffleHog (base-owned)
 - `.github/workflows/audit.yml` — weekly `pnpm audit` + auto-issue (base-owned)
 - `.github/workflows/security.yml` — CodeQL static analysis + container scanning (base-owned)
 - `.github/workflows/scorecard.yml` — OSSF Scorecard (base-owned)
